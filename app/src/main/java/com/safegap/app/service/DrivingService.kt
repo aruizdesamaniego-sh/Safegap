@@ -15,6 +15,8 @@ import com.safegap.camera.FrameProducer
 import com.safegap.core.Constants
 import com.safegap.detection.DetectionPipeline
 import com.safegap.detection.ObjectDetector
+import com.safegap.estimation.DistanceEstimator
+import com.safegap.estimation.SpeedTracker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -29,6 +31,8 @@ class DrivingService : LifecycleService() {
     @Inject lateinit var objectDetector: ObjectDetector
     @Inject lateinit var detectionPipeline: DetectionPipeline
     @Inject lateinit var frameProducer: FrameProducer
+    @Inject lateinit var distanceEstimator: DistanceEstimator
+    @Inject lateinit var speedTracker: SpeedTracker
 
     override fun onCreate() {
         super.onCreate()
@@ -66,19 +70,46 @@ class DrivingService : LifecycleService() {
             objectDetector.initialize()
         }
 
-        // Collect detection results
+        // Collect detection results and run estimation
         lifecycleScope.launch {
-            detectionPipeline.process(frameProducer.frames).collect { trackedObjects ->
-                Log.d(TAG, "Tracked objects: ${trackedObjects.size}")
-                for (obj in trackedObjects) {
-                    Log.d(
-                        TAG,
-                        "  [${obj.trackId}] ${obj.detection.className} " +
-                            "conf=${obj.detection.confidence} " +
-                            "bbox=${obj.detection.boundingBox}",
+            detectionPipeline.process(frameProducer.frames).collect { result ->
+                val enriched = result.trackedObjects.map { obj ->
+                    val rawDist = distanceEstimator.estimate(
+                        obj.detection,
+                        result.imageHeightPx,
                     )
+                    if (rawDist != null) {
+                        val estimate = speedTracker.update(
+                            obj.trackId,
+                            rawDist,
+                            obj.detection.timestampMs,
+                        )
+                        obj.copy(
+                            distanceMeters = estimate.filteredDistanceM,
+                            speedMps = estimate.speedMps,
+                            ttcSeconds = estimate.ttcSeconds,
+                        )
+                    } else {
+                        obj
+                    }
                 }
-                // TODO: Phase 3 — Feed into DistanceEstimator → SpeedTracker
+
+                // Prune speed tracker for disappeared objects
+                speedTracker.pruneExcept(
+                    enriched.map { it.trackId }.toSet(),
+                )
+
+                for (obj in enriched) {
+                    if (obj.distanceMeters != null) {
+                        Log.d(
+                            TAG,
+                            "[${obj.trackId}] ${obj.detection.className} " +
+                                "dist=${"%.1f".format(obj.distanceMeters)}m " +
+                                "speed=${"%.1f".format(obj.speedMps)}m/s " +
+                                "ttc=${obj.ttcSeconds?.let { "%.1f".format(it) } ?: "-"}s",
+                        )
+                    }
+                }
                 // TODO: Phase 4 — Feed into AlertEngine → HudRepository
             }
         }

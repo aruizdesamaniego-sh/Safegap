@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.flowOn
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class PipelineResult(
+    val trackedObjects: List<TrackedObject>,
+    val imageHeightPx: Int,
+)
+
 @Singleton
 class DetectionPipeline @Inject constructor(
     private val objectDetector: ObjectDetector,
@@ -23,9 +28,9 @@ class DetectionPipeline @Inject constructor(
 
     /**
      * Collects frames from [frameFlow], runs detection + tracking,
-     * and emits [TrackedObject] lists on [Dispatchers.Default].
+     * and emits [PipelineResult] on [Dispatchers.Default].
      */
-    fun process(frameFlow: SharedFlow<CameraFrame>): Flow<List<TrackedObject>> = flow {
+    fun process(frameFlow: SharedFlow<CameraFrame>): Flow<PipelineResult> = flow {
         objectDetector.awaitReady()
         Log.i(TAG, "Detection pipeline started")
 
@@ -43,7 +48,7 @@ class DetectionPipeline @Inject constructor(
                         "${rawDetections.size} detections, ${tracked.size} tracked",
                 )
 
-                emit(tracked)
+                emit(PipelineResult(tracked, frame.bitmap.height))
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing frame", e)
             }
