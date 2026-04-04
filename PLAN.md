@@ -334,6 +334,7 @@ Safegap/
 - Módulo `:camera`: binding CameraX, `FrameProducer` con SharedFlow
 - `DrivingService` básico con notificación foreground
 - `MainActivity` con `CameraPreviewSurface` — confirmar que el preview funciona
+- Scripts de compilación y despliegue en dispositivo real local
 
 ### Fase 2 — Detección
 - Integrar TFLite Task Library en `:detection`
