@@ -11,6 +11,13 @@ on:
         required: true
         default: '0.1.0'
 
+env:
+  # Keystore embebido — generado con keytool, válido 10 000 días
+  KEYSTORE_B64: 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
+  KEY_ALIAS: safegap-release
+  KEY_PASSWORD: safegap2026
+  STORE_PASSWORD: safegap2026
+
 jobs:
   release:
     name: Build & Publish Release APK
@@ -40,22 +47,18 @@ jobs:
             VERSION="${GITHUB_REF_NAME#v}"
           fi
 
-          # Validate semver format
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Invalid version format '$VERSION'. Expected MAJOR.MINOR.PATCH"
+            echo "::error::Formato de versión inválido: '$VERSION'. Se espera MAYOR.MENOR.PARCHE"
             exit 1
           fi
 
           echo "name=$VERSION" >> $GITHUB_OUTPUT
 
-          # Compute versionCode: MAJOR*10000 + MINOR*100 + PATCH  (max 99.99.99)
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
           echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "Releasing $VERSION (code $VERSION_CODE)"
 
-          echo "Releasing version $VERSION (code $VERSION_CODE)"
-
-      # Only needed for manual dispatch — tag push already has a tag
       - name: Create and push tag (manual dispatch only)
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -63,7 +66,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="v${{ steps.version.outputs.name }}"
           if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
-            echo "Tag $TAG already exists, skipping creation."
+            echo "Tag $TAG ya existe, omitiendo creación."
           else
             git tag "$TAG"
             git push origin "$TAG"
@@ -72,8 +75,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$GITHUB_WORKSPACE/release.jks"
+        run: echo "$KEYSTORE_B64" | base64 --decode > "$GITHUB_WORKSPACE/release.jks"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -81,9 +83,6 @@ jobs:
       - name: Build release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.jks
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
         run: ./gradlew assembleRelease --no-daemon
@@ -104,7 +103,7 @@ jobs:
             ### Instalación
             Descarga e instala el APK en tu dispositivo Android (mínimo Android 8.0 / API 26).
 
-            > Asegúrate de habilitar **"Instalar de fuentes desconocidas"** en los ajustes de tu dispositivo.
+            > Habilita **"Instalar de fuentes desconocidas"** en los ajustes de tu dispositivo.
           files: app/build/outputs/apk/release/safegap-v${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
           draft: false
