@@ -10,6 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -17,6 +20,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.safegap.app.service.DrivingService
 import com.safegap.camera.CameraManager
 import com.safegap.ui.screen.HudScreen
+import com.safegap.ui.screen.SettingsScreen
 import com.safegap.ui.theme.HudTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -28,6 +32,7 @@ class MainActivity : ComponentActivity() {
     lateinit var cameraManager: CameraManager
 
     private var previewBound = false
+    private var showSettings by mutableStateOf(false)
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -46,11 +51,19 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             HudTheme {
-                HudScreen(
-                    onPreviewViewReady = { previewView ->
-                        bindCamera(previewView)
-                    },
-                )
+                if (showSettings) {
+                    SettingsScreen(
+                        onBack = { showSettings = false },
+                    )
+                } else {
+                    HudScreen(
+                        onPreviewViewReady = { previewView ->
+                            bindCamera(previewView)
+                        },
+                        onSettingsClick = { showSettings = true },
+                        isDebug = BuildConfig.DEBUG,
+                    )
+                }
             }
         }
     }

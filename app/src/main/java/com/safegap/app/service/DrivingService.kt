@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -16,8 +17,10 @@ import com.safegap.app.R
 import com.safegap.camera.FrameProducer
 import com.safegap.core.Constants
 import com.safegap.core.HudRepository
+import com.safegap.core.SettingsRepository
 import com.safegap.detection.DetectionPipeline
 import com.safegap.detection.ObjectDetector
+import com.safegap.estimation.CameraIntrinsics
 import com.safegap.estimation.DistanceEstimator
 import com.safegap.estimation.SpeedTracker
 import dagger.hilt.android.AndroidEntryPoint
@@ -39,6 +42,12 @@ class DrivingService : LifecycleService() {
     @Inject lateinit var alertEngine: AlertEngine
     @Inject lateinit var audioAlertPlayer: AudioAlertPlayer
     @Inject lateinit var hudRepository: HudRepository
+    @Inject lateinit var settingsRepository: SettingsRepository
+
+    private var thermalThrottled = false
+    private var frameCount = 0
+    private var fpsWindowStartMs = 0L
+    private var currentFps = 0f
 
     override fun onCreate() {
         super.onCreate()
@@ -57,6 +66,8 @@ class DrivingService : LifecycleService() {
         Log.i(TAG, "DrivingService started")
 
         audioAlertPlayer.initialize()
+        registerThermalCallback()
+        observeSettings()
         startPipeline()
     }
 
@@ -73,6 +84,34 @@ class DrivingService : LifecycleService() {
         Log.i(TAG, "DrivingService stopped")
     }
 
+    private fun observeSettings() {
+        lifecycleScope.launch {
+            settingsRepository.settings.collect { settings ->
+                alertEngine.updateSettings(settings)
+                distanceEstimator.updateIntrinsics(
+                    CameraIntrinsics(
+                        focalLengthMm = settings.focalLengthMm,
+                        sensorHeightMm = settings.sensorHeightMm,
+                    ),
+                )
+                Log.d(TAG, "Settings updated: $settings")
+            }
+        }
+    }
+
+    private fun registerThermalCallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val powerManager = getSystemService(PowerManager::class.java)
+            powerManager.addThermalStatusListener { status ->
+                val wasThermal = thermalThrottled
+                thermalThrottled = status >= PowerManager.THERMAL_STATUS_SEVERE
+                if (thermalThrottled != wasThermal) {
+                    Log.w(TAG, "Thermal status changed: throttled=$thermalThrottled (status=$status)")
+                }
+            }
+        }
+    }
+
     private fun startPipeline() {
         lifecycleScope.launch {
             objectDetector.initialize()
@@ -80,6 +119,12 @@ class DrivingService : LifecycleService() {
 
         lifecycleScope.launch {
             detectionPipeline.process(frameProducer.frames).collect { result ->
+                // FPS tracking
+                updateFps()
+
+                // Skip frames under thermal throttling (process 1 of every 2)
+                if (thermalThrottled && frameCount % 2 != 0) return@collect
+
                 // Estimation
                 val enriched = result.trackedObjects.map { obj ->
                     val rawDist = distanceEstimator.estimate(
@@ -115,20 +160,25 @@ class DrivingService : LifecycleService() {
                     alertLevel = alertResult.level,
                     trackedObjects = enriched,
                     closestThreat = alertResult.closestThreat,
+                    fps = currentFps,
+                    thermalThrottled = thermalThrottled,
                 )
-
-                // Debug logging
-                if (alertResult.closestThreat != null) {
-                    val t = alertResult.closestThreat!!
-                    Log.d(
-                        TAG,
-                        "[${alertResult.level}] ${t.detection.className} " +
-                            "dist=${"%.1f".format(t.distanceMeters)}m " +
-                            "speed=${"%.1f".format(t.speedMps)}m/s " +
-                            "ttc=${t.ttcSeconds?.let { "%.1f".format(it) } ?: "-"}s",
-                    )
-                }
             }
+        }
+    }
+
+    private fun updateFps() {
+        val now = System.currentTimeMillis()
+        frameCount++
+        if (fpsWindowStartMs == 0L) {
+            fpsWindowStartMs = now
+            return
+        }
+        val elapsed = now - fpsWindowStartMs
+        if (elapsed >= 1000L) {
+            currentFps = frameCount * 1000f / elapsed
+            frameCount = 0
+            fpsWindowStartMs = now
         }
     }
 
