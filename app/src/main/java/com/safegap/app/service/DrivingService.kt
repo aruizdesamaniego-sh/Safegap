@@ -10,9 +10,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import com.safegap.alert.AlertEngine
+import com.safegap.alert.AudioAlertPlayer
 import com.safegap.app.R
 import com.safegap.camera.FrameProducer
 import com.safegap.core.Constants
+import com.safegap.core.HudRepository
 import com.safegap.detection.DetectionPipeline
 import com.safegap.detection.ObjectDetector
 import com.safegap.estimation.DistanceEstimator
@@ -33,6 +36,9 @@ class DrivingService : LifecycleService() {
     @Inject lateinit var frameProducer: FrameProducer
     @Inject lateinit var distanceEstimator: DistanceEstimator
     @Inject lateinit var speedTracker: SpeedTracker
+    @Inject lateinit var alertEngine: AlertEngine
+    @Inject lateinit var audioAlertPlayer: AudioAlertPlayer
+    @Inject lateinit var hudRepository: HudRepository
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +56,7 @@ class DrivingService : LifecycleService() {
         }
         Log.i(TAG, "DrivingService started")
 
+        audioAlertPlayer.initialize()
         startPipeline()
     }
 
@@ -60,19 +67,20 @@ class DrivingService : LifecycleService() {
 
     override fun onDestroy() {
         objectDetector.close()
+        audioAlertPlayer.release()
+        hudRepository.reset()
         super.onDestroy()
         Log.i(TAG, "DrivingService stopped")
     }
 
     private fun startPipeline() {
-        // Initialize detector (GPU delegate ~500ms)
         lifecycleScope.launch {
             objectDetector.initialize()
         }
 
-        // Collect detection results and run estimation
         lifecycleScope.launch {
             detectionPipeline.process(frameProducer.frames).collect { result ->
+                // Estimation
                 val enriched = result.trackedObjects.map { obj ->
                     val rawDist = distanceEstimator.estimate(
                         obj.detection,
@@ -94,23 +102,32 @@ class DrivingService : LifecycleService() {
                     }
                 }
 
-                // Prune speed tracker for disappeared objects
-                speedTracker.pruneExcept(
-                    enriched.map { it.trackId }.toSet(),
+                speedTracker.pruneExcept(enriched.map { it.trackId }.toSet())
+
+                // Alert evaluation
+                val alertResult = alertEngine.evaluate(enriched)
+
+                // Audio
+                audioAlertPlayer.play(alertResult.level)
+
+                // Push to UI
+                hudRepository.update(
+                    alertLevel = alertResult.level,
+                    trackedObjects = enriched,
+                    closestThreat = alertResult.closestThreat,
                 )
 
-                for (obj in enriched) {
-                    if (obj.distanceMeters != null) {
-                        Log.d(
-                            TAG,
-                            "[${obj.trackId}] ${obj.detection.className} " +
-                                "dist=${"%.1f".format(obj.distanceMeters)}m " +
-                                "speed=${"%.1f".format(obj.speedMps)}m/s " +
-                                "ttc=${obj.ttcSeconds?.let { "%.1f".format(it) } ?: "-"}s",
-                        )
-                    }
+                // Debug logging
+                if (alertResult.closestThreat != null) {
+                    val t = alertResult.closestThreat!!
+                    Log.d(
+                        TAG,
+                        "[${alertResult.level}] ${t.detection.className} " +
+                            "dist=${"%.1f".format(t.distanceMeters)}m " +
+                            "speed=${"%.1f".format(t.speedMps)}m/s " +
+                            "ttc=${t.ttcSeconds?.let { "%.1f".format(it) } ?: "-"}s",
+                    )
                 }
-                // TODO: Phase 4 — Feed into AlertEngine → HudRepository
             }
         }
     }
