@@ -22,6 +22,8 @@ class HudViewModel @Inject constructor(
                 alertLevel = data.alertLevel,
                 trackedObjects = data.trackedObjects,
                 closestThreat = data.closestThreat,
+                fps = data.fps,
+                thermalThrottled = data.thermalThrottled,
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HudState())

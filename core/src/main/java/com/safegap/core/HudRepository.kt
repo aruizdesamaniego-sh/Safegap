@@ -24,11 +24,15 @@ class HudRepository @Inject constructor() {
         alertLevel: AlertLevel,
         trackedObjects: List<TrackedObject>,
         closestThreat: TrackedObject?,
+        fps: Float = 0f,
+        thermalThrottled: Boolean = false,
     ) {
         _hudData.value = HudData(
             alertLevel = alertLevel,
             trackedObjects = trackedObjects,
             closestThreat = closestThreat,
+            fps = fps,
+            thermalThrottled = thermalThrottled,
         )
     }
 
@@ -41,4 +45,6 @@ data class HudData(
     val alertLevel: AlertLevel = AlertLevel.SAFE,
     val trackedObjects: List<TrackedObject> = emptyList(),
     val closestThreat: TrackedObject? = null,
+    val fps: Float = 0f,
+    val thermalThrottled: Boolean = false,
 )

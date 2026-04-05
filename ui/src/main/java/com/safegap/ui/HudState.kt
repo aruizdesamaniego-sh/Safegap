@@ -8,4 +8,6 @@ data class HudState(
     val alertLevel: AlertLevel = AlertLevel.SAFE,
     val trackedObjects: List<TrackedObject> = emptyList(),
     val closestThreat: TrackedObject? = null,
+    val fps: Float = 0f,
+    val thermalThrottled: Boolean = false,
 )
