@@ -1,5 +1,6 @@
 package com.safegap.alert
 
+import com.safegap.core.SafeGapSettings
 import com.safegap.core.model.AlertLevel
 import com.safegap.core.model.TrackedObject
 import javax.inject.Inject
@@ -8,10 +9,7 @@ import javax.inject.Singleton
 /**
  * Evaluates tracked objects and determines the overall alert level.
  *
- * Thresholds (from PLAN.md):
- * - CRITICAL: TTC < 2.0s OR distance < 5m (for person: TTC < 4.0s)
- * - WARNING:  TTC < 4.0s OR distance < 15m
- * - SAFE:     everything else
+ * Thresholds are configurable via [updateSettings].
  *
  * Debounce: level rises immediately, drops only after [DEBOUNCE_FRAMES]
  * consecutive frames at a lower level.
@@ -21,17 +19,23 @@ class AlertEngine @Inject constructor() {
 
     companion object {
         private const val DEBOUNCE_FRAMES = 3
-
-        private const val CRITICAL_TTC_S = 2.0f
-        private const val CRITICAL_DISTANCE_M = 5.0f
-        private const val CRITICAL_TTC_PERSON_S = 4.0f
-
-        private const val WARNING_TTC_S = 4.0f
-        private const val WARNING_DISTANCE_M = 15.0f
+        private const val PERSON_TTC_MULTIPLIER = 2.0f
     }
+
+    private var criticalTtcS = SafeGapSettings.DEFAULT_CRITICAL_TTC_S
+    private var criticalDistanceM = SafeGapSettings.DEFAULT_CRITICAL_DISTANCE_M
+    private var warningTtcS = SafeGapSettings.DEFAULT_WARNING_TTC_S
+    private var warningDistanceM = SafeGapSettings.DEFAULT_WARNING_DISTANCE_M
 
     private var currentLevel = AlertLevel.SAFE
     private var lowerFrameCount = 0
+
+    fun updateSettings(settings: SafeGapSettings) {
+        criticalTtcS = settings.criticalTtcS
+        criticalDistanceM = settings.criticalDistanceM
+        warningTtcS = settings.warningTtcS
+        warningDistanceM = settings.warningDistanceM
+    }
 
     /**
      * Evaluate a frame of tracked objects and return the debounced alert level,
@@ -47,7 +51,6 @@ class AlertEngine @Inject constructor() {
                 worstLevel = objLevel
                 closestThreat = obj
             } else if (objLevel == worstLevel && closestThreat != null) {
-                // Prefer the closer object at the same level
                 val objDist = obj.distanceMeters ?: Float.MAX_VALUE
                 val currentDist = closestThreat.distanceMeters ?: Float.MAX_VALUE
                 if (objDist < currentDist) {
@@ -74,24 +77,20 @@ class AlertEngine @Inject constructor() {
         val ttc = obj.ttcSeconds
         val isPerson = obj.detection.className == "person"
 
-        // CRITICAL check
-        val criticalTtc = if (isPerson) CRITICAL_TTC_PERSON_S else CRITICAL_TTC_S
-        if ((ttc != null && ttc < criticalTtc) || distance < CRITICAL_DISTANCE_M) {
+        // CRITICAL check — person has elevated TTC threshold
+        val critTtc = if (isPerson) criticalTtcS * PERSON_TTC_MULTIPLIER else criticalTtcS
+        if ((ttc != null && ttc < critTtc) || distance < criticalDistanceM) {
             return AlertLevel.CRITICAL
         }
 
         // WARNING check
-        if ((ttc != null && ttc < WARNING_TTC_S) || distance < WARNING_DISTANCE_M) {
+        if ((ttc != null && ttc < warningTtcS) || distance < warningDistanceM) {
             return AlertLevel.WARNING
         }
 
         return AlertLevel.SAFE
     }
 
-    /**
-     * Level rises immediately; drops only after [DEBOUNCE_FRAMES] consecutive
-     * frames at a lower level. Prevents flickering alerts.
-     */
     private fun debounce(rawLevel: AlertLevel): AlertLevel {
         if (rawLevel >= currentLevel) {
             lowerFrameCount = 0
