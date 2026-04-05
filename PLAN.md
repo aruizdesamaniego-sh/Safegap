@@ -354,12 +354,14 @@ Safegap/
 - ✅ `SpeedTracker` (ventana deslizante N=5, TTC, Kalman por track) + 8 tests
 - ✅ Cableado en `DrivingService`: detect → track → estimate → log distancia/speed/TTC
 
-### Fase 4 — Alertas y UI
-- `AlertEngine` con umbrales y debounce
-- `AudioAlertPlayer` con SoundPool y AudioFocus
-- `DetectionOverlay` en Compose (bboxes + distancia)
-- `AlertBanner` color-coded
-- Cablear pipeline completo end-to-end
+### Fase 4 — Alertas y UI ✓
+- ✅ `AlertEngine` con umbrales TTC/distancia, persona elevada (TTC<4s→CRITICAL), debounce 3 frames + 14 tests
+- ✅ `AudioAlertPlayer` con ToneGenerator (WARNING: beep 800ms, CRITICAL: beep 400ms)
+- ✅ `HudRepository` en `:core` — StateFlow compartido Service↔ViewModel
+- ✅ `DetectionOverlay` — Canvas nativo con bboxes coloreados (verde/ámbar/rojo) + etiquetas distancia
+- ✅ `AlertBanner` — banner superior animado, solo WARNING/CRITICAL, texto "VEHÍCULO CERCA — 8m"
+- ✅ `SpeedBadge` — velocidad relativa en km/h del objeto más cercano
+- ✅ Pipeline completo end-to-end: Camera → Detect → Track → Estimate → Alert → Audio + UI
 
 ### Fase 5 — Pulido
 - Pantalla de settings (umbrales, altura de cámara, calibración)

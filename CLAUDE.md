@@ -34,9 +34,9 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ./gradl
 :camera       → CameraX binding, FrameProducer (SharedFlow)
 :detection    → TFLite ObjectDetector, IoU Tracker, DetectionPipeline
 :estimation   → DistanceEstimator, KalmanFilter1D, SpeedTracker, TTC
-:alert        → Alert engine, audio player (stub)
-:ui           → Compose HUD screen, overlays, theme
-:core         → Shared models (RawDetection, TrackedObject, AlertLevel), constants
+:alert        → AlertEngine (thresholds + debounce), AudioAlertPlayer (ToneGenerator)
+:ui           → HudScreen, DetectionOverlay, AlertBanner, SpeedBadge, HudTheme
+:core         → Shared models, constants, HudRepository (StateFlow Service↔UI)
 ```
 
 ## Code Conventions
