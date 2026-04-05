@@ -22,6 +22,7 @@ import kotlin.math.abs
 fun DetectionOverlay(
     displayStates: List<DisplayState>,
     alertLevel: AlertLevel,
+    threatTrackId: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier = modifier) {
@@ -31,6 +32,12 @@ fun DetectionOverlay(
         val boxPaint = Paint().apply {
             style = Paint.Style.STROKE
             strokeWidth = 3f
+            isAntiAlias = true
+        }
+
+        val threatBoxPaint = Paint().apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 6f
             isAntiAlias = true
         }
 
@@ -50,6 +57,8 @@ fun DetectionOverlay(
             val right = ds.smoothedBox.right * canvasWidth
             val bottom = ds.smoothedBox.bottom * canvasHeight
 
+            val isThreat = threatTrackId != null && ds.trackId == threatTrackId
+
             // Alpha from displayConfidence (fades during grace period)
             val alpha = (ds.displayConfidence * 255).toInt().coerceIn(0, 255)
 
@@ -62,21 +71,26 @@ fun DetectionOverlay(
             }
             val androidColor = color.hashCode()
 
-            boxPaint.color = androidColor
-            boxPaint.alpha = alpha
+            val currentBoxPaint = if (isThreat) threatBoxPaint else boxPaint
+            currentBoxPaint.color = androidColor
+            currentBoxPaint.alpha = alpha
             bgPaint.color = androidColor
 
             drawContext.canvas.nativeCanvas.apply {
-                // Bounding box
-                drawRect(left, top, right, bottom, boxPaint)
+                // Bounding box (thicker for the threat object)
+                drawRect(left, top, right, bottom, currentBoxPaint)
 
-                // Label: "car 12.3m 25km/h"
+                // Label: "car 12.3m -25km/h"
+                // Speed sign: negative = approaching, positive = moving away
                 val label = buildString {
                     append(ds.className)
                     ds.displayDistanceM?.let { append(" ${"%.1f".format(it)}m") }
                     ds.displaySpeedMps?.let { speed ->
                         if (abs(speed) >= 0.5f) {
-                            append(" ${"%.0f".format(abs(speed * 3.6f))}km/h")
+                            // speedMps positive = approaching → display as negative
+                            val displayKmh = speed * 3.6f
+                            val sign = if (displayKmh > 0f) "-" else "+"
+                            append(" $sign${"%.0f".format(abs(displayKmh))}km/h")
                         }
                     }
                 }

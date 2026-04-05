@@ -59,6 +59,7 @@ fun HudScreen(
             DetectionOverlay(
                 displayStates = state.displayStates,
                 alertLevel = state.alertLevel,
+                threatTrackId = state.closestThreat?.trackId,
                 modifier = Modifier.fillMaxSize(),
             )
 
