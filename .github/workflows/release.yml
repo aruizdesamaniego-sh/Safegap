@@ -11,6 +11,11 @@ on:
         required: true
         default: '0.1.0'
 
+env:
+  KEY_ALIAS: safegap-release
+  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+  STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+
 jobs:
   release:
     name: Build & Publish Release APK
@@ -40,22 +45,18 @@ jobs:
             VERSION="${GITHUB_REF_NAME#v}"
           fi
 
-          # Validate semver format
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Invalid version format '$VERSION'. Expected MAJOR.MINOR.PATCH"
+            echo "::error::Formato de versión inválido: '$VERSION'. Se espera MAYOR.MENOR.PARCHE"
             exit 1
           fi
 
           echo "name=$VERSION" >> $GITHUB_OUTPUT
 
-          # Compute versionCode: MAJOR*10000 + MINOR*100 + PATCH  (max 99.99.99)
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
           echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "Releasing $VERSION (code $VERSION_CODE)"
 
-          echo "Releasing version $VERSION (code $VERSION_CODE)"
-
-      # Only needed for manual dispatch — tag push already has a tag
       - name: Create and push tag (manual dispatch only)
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -63,7 +64,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="v${{ steps.version.outputs.name }}"
           if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
-            echo "Tag $TAG already exists, skipping creation."
+            echo "Tag $TAG ya existe, omitiendo creación."
           else
             git tag "$TAG"
             git push origin "$TAG"
@@ -72,8 +73,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$GITHUB_WORKSPACE/release.jks"
+        run: printf '%s' "$KEYSTORE_B64" | base64 --decode > "$GITHUB_WORKSPACE/release.jks"
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -81,9 +83,6 @@ jobs:
       - name: Build release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.jks
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           VERSION_NAME: ${{ steps.version.outputs.name }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
         run: ./gradlew assembleRelease --no-daemon
@@ -104,7 +103,7 @@ jobs:
             ### Instalación
             Descarga e instala el APK en tu dispositivo Android (mínimo Android 8.0 / API 26).
 
-            > Asegúrate de habilitar **"Instalar de fuentes desconocidas"** en los ajustes de tu dispositivo.
+            > Habilita **"Instalar de fuentes desconocidas"** en los ajustes de tu dispositivo.
           files: app/build/outputs/apk/release/safegap-v${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
           draft: false
