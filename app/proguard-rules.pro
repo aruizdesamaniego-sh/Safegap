@@ -1,1 +1,28 @@
 # SafeGap ProGuard rules
+
+# TFLite Task Vision - uses reflection for model loading
+-keep class org.tensorflow.** { *; }
+-keep class com.google.android.odml.** { *; }
+-dontwarn org.tensorflow.lite.**
+
+# Hilt - generated code
+-keep class dagger.hilt.** { *; }
+-keep @dagger.hilt.android.lifecycle.HiltViewModel class * { *; }
+
+# DataStore preferences
+-keepclassmembers class * extends androidx.datastore.preferences.protobuf.GeneratedMessageLite {
+    *;
+}
+
+# Keep Compose runtime
+-keep class androidx.compose.** { *; }
+
+# Keep model classes used by detection pipeline
+-keep class com.safegap.core.model.** { *; }
+-keep class com.safegap.detection.DetectorConfig { *; }
+
+# Strip debug and verbose logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}
