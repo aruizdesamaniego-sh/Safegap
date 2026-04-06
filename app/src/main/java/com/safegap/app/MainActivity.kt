@@ -33,10 +33,12 @@ class MainActivity : ComponentActivity() {
 
     private var previewBound = false
     private var showSettings by mutableStateOf(false)
+    private var cameraPermissionGranted by mutableStateOf(false)
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        cameraPermissionGranted = granted
         if (granted) {
             startDrivingService()
         }
@@ -57,6 +59,7 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     HudScreen(
+                        isCameraPermissionGranted = cameraPermissionGranted,
                         onPreviewViewReady = { previewView ->
                             bindCamera(previewView)
                         },
@@ -70,9 +73,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        cameraPermissionGranted = granted
+        if (granted) {
             startDrivingService()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
