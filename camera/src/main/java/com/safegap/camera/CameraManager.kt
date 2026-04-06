@@ -20,7 +20,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,6 +42,7 @@ class CameraManager @Inject constructor(
     private val frameProducer: FrameProducer,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val analysisExecutor = Executors.newSingleThreadExecutor()
     private var cameraProvider: ProcessCameraProvider? = null
     private var camera: Camera? = null
     private var lifecycleOwner: LifecycleOwner? = null
@@ -47,6 +50,7 @@ class CameraManager @Inject constructor(
     private var currentLensIndex = 0
     private var backCameraInfos: List<CameraInfo> = emptyList()
 
+    private var zoomObserver: androidx.lifecycle.Observer<androidx.camera.core.ZoomState>? = null
     private val _zoomState = MutableStateFlow(CameraZoomState())
     val zoomState: StateFlow<CameraZoomState> = _zoomState.asStateFlow()
 
@@ -104,6 +108,9 @@ class CameraManager @Inject constructor(
     }
 
     fun stop() {
+        zoomObserver?.let { camera?.cameraInfo?.zoomState?.removeObserver(it) }
+        zoomObserver = null
+        scope.coroutineContext.cancelChildren()
         cameraProvider?.unbindAll()
         camera = null
         Log.i(TAG, "Camera stopped")
@@ -124,9 +131,7 @@ class CameraManager @Inject constructor(
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .build()
             .also { analysis ->
-                analysis.setAnalyzer(
-                    ContextCompat.getMainExecutor(context),
-                ) { imageProxy ->
+                analysis.setAnalyzer(analysisExecutor) { imageProxy ->
                     scope.launch {
                         try {
                             frameProducer.emit(imageProxy)
@@ -164,8 +169,13 @@ class CameraManager @Inject constructor(
                 imageAnalysis,
             )
 
-            // Observe zoom state
-            camera?.cameraInfo?.zoomState?.observeForever { zoom ->
+            // Remove old zoom observer before registering a new one
+            zoomObserver?.let { obs ->
+                camera?.cameraInfo?.zoomState?.removeObserver(obs)
+            }
+
+            // Track zoom state with a stored observer to avoid leaks on lens switch
+            val obs = androidx.lifecycle.Observer<androidx.camera.core.ZoomState> { zoom ->
                 _zoomState.value = CameraZoomState(
                     minZoomRatio = zoom.minZoomRatio,
                     maxZoomRatio = zoom.maxZoomRatio,
@@ -173,6 +183,8 @@ class CameraManager @Inject constructor(
                     availableLensCount = backCameraInfos.size,
                 )
             }
+            zoomObserver = obs
+            camera?.cameraInfo?.zoomState?.observeForever(obs)
 
             Log.i(TAG, "Camera bound (lens index=$currentLensIndex)")
         } catch (e: Exception) {

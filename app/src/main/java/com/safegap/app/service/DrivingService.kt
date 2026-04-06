@@ -123,10 +123,12 @@ class DrivingService : LifecycleService() {
 
     private fun startPipeline() {
         lifecycleScope.launch {
-            objectDetector.initialize()
-        }
-
-        lifecycleScope.launch {
+            try {
+                objectDetector.initialize()
+            } catch (e: Exception) {
+                Log.e(TAG, "Detector initialization failed", e)
+                return@launch
+            }
             detectionPipeline.process(frameProducer.frames).collect { result ->
                 // FPS tracking
                 updateFps()

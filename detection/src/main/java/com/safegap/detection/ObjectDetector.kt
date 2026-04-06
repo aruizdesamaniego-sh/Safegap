@@ -23,7 +23,7 @@ class ObjectDetector @Inject constructor(
         private const val TAG = "SafeGap.Detector"
     }
 
-    private val _ready = CompletableDeferred<Unit>()
+    private var _ready = CompletableDeferred<Unit>()
 
     private var detector: TfLiteObjectDetector? = null
 
@@ -115,5 +115,6 @@ class ObjectDetector @Inject constructor(
     fun close() {
         detector?.close()
         detector = null
+        _ready = CompletableDeferred() // reset for re-initialization after service restart
     }
 }

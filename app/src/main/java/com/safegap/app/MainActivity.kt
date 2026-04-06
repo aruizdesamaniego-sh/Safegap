@@ -87,7 +87,23 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         cameraManager.stop()
         previewBound = false
+        // Service intentionally NOT stopped here — it must survive
+        // phone calls, screen locks, and brief app switches during driving.
+    }
+
+    /**
+     * Explicitly stops the driving session and foreground service.
+     * Call from UI (e.g., stop button) or when the activity is finishing.
+     */
+    fun stopDrivingSession() {
         stopService(Intent(this, DrivingService::class.java))
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            stopDrivingSession()
+        }
+        super.onDestroy()
     }
 
     private fun bindCamera(previewView: PreviewView) {
