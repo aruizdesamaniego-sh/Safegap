@@ -42,6 +42,8 @@ class CameraManager @Inject constructor(
     private val frameProducer: FrameProducer,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Singleton-scoped: lives for the process lifetime, no shutdown needed.
+    // Recreating per start/stop cycle would add complexity with no practical benefit.
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private var cameraProvider: ProcessCameraProvider? = null
     private var camera: Camera? = null
@@ -161,6 +163,11 @@ class CameraManager @Inject constructor(
         }
 
         try {
+            // Remove old zoom observer from OLD camera before unbinding
+            zoomObserver?.let { obs ->
+                camera?.cameraInfo?.zoomState?.removeObserver(obs)
+            }
+
             provider.unbindAll()
             camera = provider.bindToLifecycle(
                 lifecycleOwner,
@@ -168,11 +175,6 @@ class CameraManager @Inject constructor(
                 preview,
                 imageAnalysis,
             )
-
-            // Remove old zoom observer before registering a new one
-            zoomObserver?.let { obs ->
-                camera?.cameraInfo?.zoomState?.removeObserver(obs)
-            }
 
             // Track zoom state with a stored observer to avoid leaks on lens switch
             val obs = androidx.lifecycle.Observer<androidx.camera.core.ZoomState> { zoom ->
